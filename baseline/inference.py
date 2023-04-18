@@ -56,9 +56,19 @@ def inference(data_dir, model_dir, output_dir, args):
     preds = []
     with torch.no_grad():
         for idx, images in enumerate(loader):
+            # images = images.to(device)
+            # pred = model(images)
+            # pred = pred.argmax(dim=-1)
+            # preds.extend(pred.cpu().numpy())
+
+            # Multi Label Classification
             images = images.to(device)
             pred = model(images)
-            pred = pred.argmax(dim=-1)
+            (mask_label, gender_label, age_label) = torch.split(pred, [3,2,3], dim=1)
+            mask_pred = torch.argmax(mask_label, dim=-1)
+            gender_pred = torch.argmax(gender_label, dim=-1)
+            age_pred = torch.argmax(age_label, dim=-1)
+            pred = MaskBaseDataset.encode_multi_class(mask_pred, gender_pred, age_pred)
             preds.extend(pred.cpu().numpy())
 
     info['ans'] = preds
@@ -77,7 +87,7 @@ if __name__ == '__main__':
 
     # Container environment
     parser.add_argument('--data_dir', type=str, default=os.environ.get('SM_CHANNEL_EVAL', '/opt/ml/input/data/eval'))
-    parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_CHANNEL_MODEL', './model/exp'))
+    parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_CHANNEL_MODEL', './model/exp')) # change output dir
     parser.add_argument('--output_dir', type=str, default=os.environ.get('SM_OUTPUT_DATA_DIR', './output'))
 
     args = parser.parse_args()
