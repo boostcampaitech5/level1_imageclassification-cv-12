@@ -65,12 +65,34 @@ class F1Loss(nn.Module):
         f1 = f1.clamp(min=self.epsilon, max=1 - self.epsilon)
         return 1 - f1.mean()
 
+class WeightedCrossEntropy(nn.Module):
+    def __init__(self, classes=3, epsilon=1e-7):
+        super().__init__()
+        self.classes = classes
+        self.epsilon = epsilon
+
+    def forward(self, y_pred, y_target):
+        nSamples = torch.bincount(y_target).float()
+
+        try:
+            loss = F.cross_entropy(y_pred, y_target, weight=nSamples)
+        except:
+            # batch 데이터 안에 class 값이 고루 분포되지 않아 특정 class 값이 없을 때
+            # 임시 방편 ->  1. 가장 좋은 방법은 class가 batch별로 최소 1개씩은 분포되거나
+            #               2. class 개수를 알고있는 것인데, 
+            #               2번의 경우는 mask, gender, age별로 criterion을 따로 선언해야해서 기존 train.py 구조를 수정해야한다.
+            nSamples = F.pad(nSamples, (0,1), mode='constant', value=0)
+            loss = F.cross_entropy(y_pred, y_target, weight=nSamples)
+
+        return loss
+  
 
 _criterion_entrypoints = {
     'cross_entropy': nn.CrossEntropyLoss,
     'focal': FocalLoss,
     'label_smoothing': LabelSmoothingLoss,
-    'f1': F1Loss
+    'f1': F1Loss,
+    'weighted_cross_entropy' : WeightedCrossEntropy,
 }
 
 
