@@ -177,7 +177,14 @@ def train(data_dir, model_dir, args, trial):
 
     best_val_acc = 0
     best_val_loss = np.inf
+<<<<<<< HEAD:baseline/train_optuna.py
     for epoch in range(opt_epochs): # range(args.epochs)
+=======
+
+    early_stop_patience = 5  
+    no_improvement_count = 0
+    for epoch in range(args.epochs):
+>>>>>>> 281dbdb4f073cc07199851be7719b5be7e7d6b47:baseline/train.py
         # train loop
         model.train()
         loss_value = 0
@@ -259,6 +266,16 @@ def train(data_dir, model_dir, args, trial):
                 print(f"New best model for val accuracy : {val_acc:4.2%}! saving the best model..")
                 torch.save(model.module.state_dict(), f"{save_dir}/best.pth")
                 best_val_acc = val_acc
+                no_improvement_count = 0 
+            else:
+                print(f"Current best val accuracy : {best_val_acc:4.2%}")
+                no_improvement_count += 1
+            if no_improvement_count >= early_stop_patience:
+                print("Early stopping... no improvement for 5 epochs")
+                break
+                        
+
+
             torch.save(model.module.state_dict(), f"{save_dir}/last.pth")
             print(
                 f"[Val] acc : {val_acc:4.2%}, loss: {val_loss:4.2} || "

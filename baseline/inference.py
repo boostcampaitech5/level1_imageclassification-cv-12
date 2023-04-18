@@ -71,6 +71,7 @@ def inference(data_dir, model_dir, output_dir, args):
             pred = MaskBaseDataset.encode_multi_class(mask_pred, gender_pred, age_pred)
             preds.extend(pred.cpu().numpy())
 
+
     info['ans'] = preds
     save_path = os.path.join(output_dir, f'output.csv')
     info.to_csv(save_path, index=False)
