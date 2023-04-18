@@ -165,7 +165,10 @@ def train(data_dir, model_dir, args):
         "learning_rate" : args.lr,
         "architecture" : args.model
     }
-    wandb.init(project="naver_boostcamp_AI_Tech_Level1", config=config)
+    # 자동으로 wandb 이름 설정
+    # wandb_name = str(args.criterion) + '_' + str(args.epochs) + now.strftime('_%m%d-%H:%M:%S')
+    wandb_name = args.name + now.strftime('_%m%d-%H:%M:%S')
+    wandb.init(project="naver_boostcamp_AI_Tech_Level1", config=config, name = wandb_name)
 
     best_val_acc = 0
     best_val_loss = np.inf
@@ -369,6 +372,10 @@ if __name__ == '__main__':
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR', './model'))
 
     args = parser.parse_args()
+
+    # name 자동 설정
+    args.name = str(args.criterion) + '_' + str(args.epochs)
+
     print(args)
 
     data_dir = args.data_dir
