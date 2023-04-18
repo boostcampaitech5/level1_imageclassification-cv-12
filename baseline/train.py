@@ -18,6 +18,10 @@ from torch.utils.tensorboard import SummaryWriter
 from dataset import MaskBaseDataset
 from loss import create_criterion
 
+# newly imported
+from datetime import datetime
+import wandb
+import random
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -85,7 +89,11 @@ def increment_path(path, exist_ok=False):
 def train(data_dir, model_dir, args):
     seed_everything(args.seed)
 
-    save_dir = increment_path(os.path.join(model_dir, args.name))
+    # set directory for saving test results 
+    now = datetime.now()
+    folder_name = now.strftime('%Y-%m-%d-%H:%M:%S')
+    save_dir = increment_path(os.path.join(model_dir, folder_name))
+    # save_dir = increment_path(os.path.join(model_dir, args.name))
 
     # -- settings
     use_cuda = torch.cuda.is_available()
@@ -150,6 +158,15 @@ def train(data_dir, model_dir, args):
     with open(os.path.join(save_dir, 'config.json'), 'w', encoding='utf-8') as f:
         json.dump(vars(args), f, ensure_ascii=False, indent=4)
 
+    # -- wandb initialize with configuration
+    config={
+        "epochs": args.epochs, 
+        "batch_size": args.batch_size,
+        "learning_rate" : args.lr,
+        "architecture" : args.model
+    }
+    wandb.init(project="naver_boostcamp_AI_Tech_Level1", config=config)
+
     best_val_acc = 0
     best_val_loss = np.inf
     for epoch in range(args.epochs):
@@ -157,25 +174,65 @@ def train(data_dir, model_dir, args):
         model.train()
         loss_value = 0
         matches = 0
+
+        # Multi Label Classification
+        # mask_matches = 0
+        # gender_matches = 0
+        # age_matches = 0        
         for idx, train_batch in enumerate(train_loader):
-            inputs, labels = train_batch
+            # inputs, labels = train_batch
+            # inputs = inputs.to(device)
+            # labels = labels.to(device)
+
+            # optimizer.zero_grad()
+
+            # outs = model(inputs)
+            # preds = torch.argmax(outs, dim=-1)
+            # loss = criterion(outs, labels)
+
+            # loss.backward()
+            # optimizer.step()
+
+            # loss_value += loss.item()
+            # matches += (preds == labels).sum().item()
+
+            # Multi Label Classification
+            inputs, (mask_labels, gender_labels, age_labels) = train_batch
             inputs = inputs.to(device)
-            labels = labels.to(device)
+            mask_labels = mask_labels.to(device)
+            gender_labels = gender_labels.to(device)
+            age_labels = age_labels.to(device)
 
             optimizer.zero_grad()
 
             outs = model(inputs)
-            preds = torch.argmax(outs, dim=-1)
-            loss = criterion(outs, labels)
+            (mask_outs, gender_outs, age_outs) = torch.split(outs, [3,2,3], dim=1)
+            mask_preds = torch.argmax(mask_outs, dim=-1)
+            gender_preds = torch.argmax(gender_outs, dim=-1)
+            age_preds = torch.argmax(age_outs, dim=-1)
+
+            mask_loss = criterion(mask_outs, mask_labels)
+            gender_loss = criterion(gender_outs, gender_labels)
+            age_loss = criterion(age_outs, age_labels)
+
+            loss = mask_loss + gender_loss + age_loss
+            # loss = mask_loss + gender_loss + 1.5*age_loss
 
             loss.backward()
             optimizer.step()
 
             loss_value += loss.item()
-            matches += (preds == labels).sum().item()
+            matches += (mask_preds == mask_labels).sum().item()
+            matches += (gender_preds == gender_labels).sum().item()
+            matches += (age_preds == age_labels).sum().item()
+            # mask_matches += (mask_preds == mask_labels).sum().item()
+            # gender_matches += (gender_preds == gender_labels).sum().item()
+            # age_matches += (age_preds == age_labels).sum().item()
+
             if (idx + 1) % args.log_interval == 0:
                 train_loss = loss_value / args.log_interval
-                train_acc = matches / args.batch_size / args.log_interval
+                # train_acc = matches / args.batch_size / args.log_interval
+                train_acc = (matches / args.batch_size / args.log_interval) / 3 # Multi Label Classification
                 current_lr = get_lr(optimizer)
                 print(
                     f"Epoch[{epoch}/{args.epochs}]({idx + 1}/{len(train_loader)}) || "
@@ -186,6 +243,12 @@ def train(data_dir, model_dir, args):
 
                 loss_value = 0
                 matches = 0
+        
+        # logging wandb train phase
+        wandb.log({
+            'Train acc': train_acc, 
+            'Train loss': train_loss
+        })
 
         scheduler.step()
 
@@ -197,27 +260,66 @@ def train(data_dir, model_dir, args):
             val_acc_items = []
             figure = None
             for val_batch in val_loader:
-                inputs, labels = val_batch
+                # inputs, labels = val_batch
+                # inputs = inputs.to(device)
+                # labels = labels.to(device)
+
+                # outs = model(inputs)
+                # preds = torch.argmax(outs, dim=-1)
+
+                # loss_item = criterion(outs, labels).item()
+                # acc_item = (labels == preds).sum().item()
+                # val_loss_items.append(loss_item)
+                # val_acc_items.append(acc_item)
+
+                # Multi Label Classification
+                inputs, (mask_labels, gender_labels, age_labels) = val_batch
                 inputs = inputs.to(device)
-                labels = labels.to(device)
+                mask_labels = mask_labels.to(device)
+                gender_labels = gender_labels.to(device)
+                age_labels = age_labels.to(device)
 
                 outs = model(inputs)
-                preds = torch.argmax(outs, dim=-1)
+                (mask_outs, gender_outs, age_outs) = torch.split(outs, [3,2,3], dim=1)
+                mask_preds = torch.argmax(mask_outs, dim=-1)
+                gender_preds = torch.argmax(gender_outs, dim=-1)
+                age_preds = torch.argmax(age_outs, dim=-1)
 
-                loss_item = criterion(outs, labels).item()
-                acc_item = (labels == preds).sum().item()
+                mask_loss_item = criterion(mask_outs, mask_labels).item()
+                gender_loss_item = criterion(gender_outs, gender_labels).item()
+                age_loss_item = criterion(age_outs, age_labels).item()
+                loss_item = mask_loss_item + gender_loss_item + age_loss_item
+                # loss_item = mask_loss_item + gender_loss_item + 1.5*age_loss_item
                 val_loss_items.append(loss_item)
+
+                mask_acc_item = (mask_preds == mask_labels).sum().item()
+                gender_acc_item = (gender_preds == gender_labels).sum().item()
+                age_acc_item = (age_preds == age_labels).sum().item()
+                acc_item = mask_acc_item + gender_acc_item + age_acc_item
                 val_acc_items.append(acc_item)
+                # val_acc_items.append(mask_acc_item)
+                # val_acc_items.append(gender_acc_item)
+                # val_acc_items.append(age_acc_item)
 
                 if figure is None:
                     inputs_np = torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
                     inputs_np = dataset_module.denormalize_image(inputs_np, dataset.mean, dataset.std)
+                    # figure = grid_image(
+                    #     inputs_np, labels, preds, n=16, shuffle=args.dataset != "MaskSplitByProfileDataset"
+                    # )
                     figure = grid_image(
-                        inputs_np, labels, preds, n=16, shuffle=args.dataset != "MaskSplitByProfileDataset"
+                        inputs_np, mask_labels, mask_preds, n=16, shuffle=args.dataset != "MaskSplitByProfileDataset"
+                    )
+                    figure = grid_image(
+                        inputs_np, gender_labels, gender_preds, n=16, shuffle=args.dataset != "MaskSplitByProfileDataset"
+                    )
+                    figure = grid_image(
+                        inputs_np, age_labels, age_preds, n=16, shuffle=args.dataset != "MaskSplitByProfileDataset"
                     )
 
+
             val_loss = np.sum(val_loss_items) / len(val_loader)
-            val_acc = np.sum(val_acc_items) / len(val_set)
+            val_acc = np.sum(val_acc_items) / len(val_set) / 3
             best_val_loss = min(best_val_loss, val_loss)
             if val_acc > best_val_acc:
                 print(f"New best model for val accuracy : {val_acc:4.2%}! saving the best model..")
@@ -233,19 +335,27 @@ def train(data_dir, model_dir, args):
             logger.add_figure("results", figure, epoch)
             print()
 
+            # logging wandb valid phase
+            wandb.log({
+                'Valid acc': val_acc, 
+                'Valid loss': val_loss
+            })
+    
+    wandb.finish()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Data and model checkpoints directories
     parser.add_argument('--seed', type=int, default=42, help='random seed (default: 42)')
-    parser.add_argument('--epochs', type=int, default=5, help='number of epochs to train (default: 1)')
+    parser.add_argument('--epochs', type=int, default=80, help='number of epochs to train (default: 1)')
     parser.add_argument('--dataset', type=str, default='MaskBaseDataset', help='dataset augmentation type (default: MaskBaseDataset)')
     parser.add_argument('--augmentation', type=str, default='BaseAugmentation', help='data augmentation type (default: BaseAugmentation)')
     parser.add_argument("--resize", nargs="+", type=list, default=[128, 96], help='resize size for image when training')
     parser.add_argument('--batch_size', type=int, default=64, help='input batch size for training (default: 64)')
     parser.add_argument('--valid_batch_size', type=int, default=1000, help='input batch size for validing (default: 1000)')
-    parser.add_argument('--model', type=str, default='BaseModel', help='model type (default: BaseModel)')
+    parser.add_argument('--model', type=str, default='MyModel', help='model type (default: BaseModel)')
     parser.add_argument('--optimizer', type=str, default='SGD', help='optimizer type (default: SGD)')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate (default: 1e-3)')
     parser.add_argument('--val_ratio', type=float, default=0.2, help='ratio for validaton (default: 0.2)')
