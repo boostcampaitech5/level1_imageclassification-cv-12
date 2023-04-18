@@ -1,9 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-# newly imported
 import torchvision.models as models
-
 
 class BaseModel(nn.Module):
     def __init__(self, num_classes):
@@ -40,6 +38,9 @@ class BaseModel(nn.Module):
 class MyModel(nn.Module):
     def __init__(self, num_classes):
         super().__init__()
+        self.model = models.resnet101(pretrained=True)
+        num_features = self.model.fc.in_features
+        self.model.fc = nn.Linear(num_features, num_classes)
 
         """
         1. 위와 같이 생성자의 parameter 에 num_claases 를 포함해주세요.
