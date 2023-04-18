@@ -58,8 +58,16 @@ def inference(data_dir, model_dir, output_dir, args):
         for idx, images in enumerate(loader):
             images = images.to(device)
             pred = model(images)
-            pred = pred.argmax(dim=-1)
+            # pred = pred.argmax(dim=-1)
+            # preds.extend(pred.cpu().numpy())
+
+            (mask_label,gender_label,age_label) = torch.split(pred,[3,2,3],dim=1)
+            mask_pred = torch.argmax(mask_label,dim=1)
+            gender_pred = torch.argmax(gender_label,dim=1)
+            age_pred = torch.argmax(age_label,dim=1)
+            pred = MaskBaseDataset.encode_multi_class(mask_pred,gender_pred,age_pred)
             preds.extend(pred.cpu().numpy())
+
 
     info['ans'] = preds
     save_path = os.path.join(output_dir, f'output.csv')
