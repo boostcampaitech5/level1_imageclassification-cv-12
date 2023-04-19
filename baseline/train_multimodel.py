@@ -15,14 +15,8 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-# from dataset import MaskBaseDataset
-from dataset_mask import MaskBaseDataset
-# from dataset_gender import MaskBaseDataset
-# from dataset_age import MaskBaseDataset
+from dataset import MaskBaseDataset
 from loss import create_criterion
-import torch.nn.functional as F
-
-from sklearn.metrics import f1_score
 
 
 def seed_everything(seed):
@@ -87,6 +81,7 @@ def increment_path(path, exist_ok=False):
         n = max(i) + 1 if i else 2
         return f"{path}{n}"
 
+
 def train(data_dir, model_dir, args):
     seed_everything(args.seed)
 
@@ -102,6 +97,9 @@ def train(data_dir, model_dir, args):
         data_dir=data_dir,
     )
     num_classes = dataset.num_classes  # 18
+    print('='*20)
+    print("num_classes : ", num_classes)
+    print('='*20)
 
     # -- augmentation
     transform_module = getattr(import_module("dataset"), args.augmentation)  # default: BaseAugmentation
@@ -162,7 +160,6 @@ def train(data_dir, model_dir, args):
         model.train()
         loss_value = 0
         matches = 0
-        f1_scores = []
         for idx, train_batch in enumerate(train_loader):
             inputs, labels = train_batch
             inputs = inputs.to(device)
@@ -215,11 +212,6 @@ def train(data_dir, model_dir, args):
                 val_loss_items.append(loss_item)
                 val_acc_items.append(acc_item)
 
-                # F1 Score
-                f1 = f1_score(torch.clone(preds).detach().cpu().numpy(), 
-                            torch.clone(labels).detach().cpu().numpy(),average='macro')
-                f1_scores.append(f1)
-
                 if figure is None:
                     inputs_np = torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
                     inputs_np = dataset_module.denormalize_image(inputs_np, dataset.mean, dataset.std)
@@ -227,7 +219,6 @@ def train(data_dir, model_dir, args):
                         inputs_np, labels, preds, n=16, shuffle=args.dataset != "MaskSplitByProfileDataset"
                     )
 
-            macro_f1 = sum(f1_scores) / len(f1_scores)
             val_loss = np.sum(val_loss_items) / len(val_loader)
             val_acc = np.sum(val_acc_items) / len(val_set)
             best_val_loss = min(best_val_loss, val_loss)
@@ -239,7 +230,6 @@ def train(data_dir, model_dir, args):
             print(
                 f"[Val] acc : {val_acc:4.2%}, loss: {val_loss:4.2} || "
                 f"best acc : {best_val_acc:4.2%}, best loss: {best_val_loss:4.2}"
-                f" || f1 score : {macro_f1}"
             )
             logger.add_scalar("Val/loss", val_loss, epoch)
             logger.add_scalar("Val/accuracy", val_acc, epoch)
@@ -252,7 +242,7 @@ if __name__ == '__main__':
 
     # Data and model checkpoints directories
     parser.add_argument('--seed', type=int, default=42, help='random seed (default: 42)')
-    parser.add_argument('--epochs', type=int, default=30, help='number of epochs to train (default: 1)')
+    parser.add_argument('--epochs', type=int, default=20, help='number of epochs to train (default: 1)')
     parser.add_argument('--dataset', type=str, default='MaskBaseDataset', help='dataset augmentation type (default: MaskBaseDataset)')
     parser.add_argument('--augmentation', type=str, default='BaseAugmentation', help='data augmentation type (default: BaseAugmentation)')
     parser.add_argument("--resize", nargs="+", type=list, default=[128, 96], help='resize size for image when training')
@@ -262,7 +252,7 @@ if __name__ == '__main__':
     parser.add_argument('--optimizer', type=str, default='SGD', help='optimizer type (default: SGD)')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate (default: 1e-3)')
     parser.add_argument('--val_ratio', type=float, default=0.2, help='ratio for validaton (default: 0.2)')
-    parser.add_argument('--criterion', type=str, default='cross_entropy', help='criterion type (default: cross_entropy)')
+    parser.add_argument('--criterion', type=str, default='label_smoothing', help='criterion type (default: cross_entropy)')
     parser.add_argument('--lr_decay_step', type=int, default=20, help='learning rate scheduler deacy step (default: 20)')
     parser.add_argument('--log_interval', type=int, default=20, help='how many batches to wait before logging training status')
     parser.add_argument('--name', default='exp', help='model save at {SM_MODEL_DIR}/{name}')

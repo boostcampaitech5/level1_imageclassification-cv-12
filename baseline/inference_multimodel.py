@@ -72,9 +72,9 @@ def inference(data_dir, model_dir, output_dir, args):
             gender_out = gender_model(images)
             age_out = age_model(images)
 
-            mask_pred = torch.argmax(mask_pred, dim=-1)
-            gender_pred = torch.argmax(gender_pred, dim=-1)
-            age_pred = torch.argmax(age_pred, dim=-1)
+            mask_pred = torch.argmax(mask_out, dim=-1)
+            gender_pred = torch.argmax(gender_out, dim=-1)
+            age_pred = torch.argmax(age_out, dim=-1)
 
             pred = MaskBaseDataset.encode_multi_class(mask_pred, gender_pred, age_pred)
             preds.extend(pred.cpu().numpy())
