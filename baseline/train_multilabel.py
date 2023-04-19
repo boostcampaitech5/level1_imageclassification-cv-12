@@ -100,16 +100,16 @@ def train(data_dir, model_dir, args):
     device = torch.device("cuda" if use_cuda else "cpu")
 
     # -- dataset
-    # dataset_module = getattr(import_module("dataset"), args.dataset)  # default: MaskBaseDataset
-    dataset_module = getattr(import_module("dataset_multilabel"), args.dataset)  # default: MaskBaseDataset
+    dataset_module = getattr(import_module("dataset"), args.dataset)  # default: MaskBaseDataset
+    # dataset_module = getattr(import_module("dataset_multilabel"), args.dataset)  # default: MaskBaseDataset
     dataset = dataset_module(
         data_dir=data_dir,
     )
     num_classes = dataset.num_classes  # 18
 
     # -- augmentation
-    # transform_module = getattr(import_module("dataset"), args.augmentation)  # default: BaseAugmentation
-    transform_module = getattr(import_module("dataset_multilabel"), args.augmentation)  # default: BaseAugmentation
+    transform_module = getattr(import_module("dataset"), args.augmentation)  # default: BaseAugmentation
+    # transform_module = getattr(import_module("dataset_multilabel"), args.augmentation)  # default: BaseAugmentation
     transform = transform_module(
         resize=args.resize,
         mean=dataset.mean,
@@ -354,7 +354,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=80, help='number of epochs to train (default: 1)')
     parser.add_argument('--dataset', type=str, default='MaskBaseDataset', help='dataset augmentation type (default: MaskBaseDataset)')
     parser.add_argument('--augmentation', type=str, default='BaseAugmentation', help='data augmentation type (default: BaseAugmentation)')
-    parser.add_argument("--resize", nargs="+", type=list, default=[128, 96], help='resize size for image when training')
+    parser.add_argument("--resize", nargs="+", type=list, default=[224, 224], help='resize size for image when training')
     parser.add_argument('--batch_size', type=int, default=64, help='input batch size for training (default: 64)')
     parser.add_argument('--valid_batch_size', type=int, default=1000, help='input batch size for validing (default: 1000)')
     parser.add_argument('--model', type=str, default='MyModel', help='model type (default: BaseModel)')

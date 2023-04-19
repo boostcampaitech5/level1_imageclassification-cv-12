@@ -56,9 +56,9 @@ class MyModel(nn.Module):
         # num_features = self.resnet34_pretrained.fc.in_features
         # self.resnet34_pretrained.fc = nn.Linear(num_features, num_classes)
 
-        self.resnet50_pretrained = models.resnet50(pretrained=True)
-        num_features = self.resnet50_pretrained.fc.in_features
-        self.resnet50_pretrained.fc = nn.Linear(num_features, num_classes)
+        # self.resnet50_pretrained = models.resnet50(pretrained=True)
+        # num_features = self.resnet50_pretrained.fc.in_features
+        # self.resnet50_pretrained.fc = nn.Linear(num_features, num_classes)
 
         # self.resnet101_pretrained = models.resnet101(pretrained=True)
         # num_features = self.resnet101_pretrained.fc.in_features
@@ -67,6 +67,9 @@ class MyModel(nn.Module):
         # self.resnet152_pretrained = models.resnet152(pretrained=True)
         # num_features = self.resnet152_pretrained.fc.in_features
         # self.resnet152_pretrained.fc = nn.Linear(num_features, num_classes)
+        self.vit=models.vit_b_16(pretrained=True)
+        num_features = self.vit.heads.head.in_features
+        self.vit.heads = nn.Linear(num_features, num_classes)
 
 
     def forward(self, x):
@@ -76,8 +79,9 @@ class MyModel(nn.Module):
         """
         # x = self.resnet18_pretrained(x)
         # x = self.resnet34_pretrained(x)
-        x = self.resnet50_pretrained(x)
+        # x = self.resnet50_pretrained(x)
         # x = self.resnet101_pretrained(x)
         # x = self.resnet152_pretrained(x)
+        x = self.vit(x)
 
         return x
