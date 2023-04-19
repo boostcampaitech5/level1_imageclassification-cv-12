@@ -2,7 +2,6 @@ import argparse
 import multiprocessing
 import os
 from importlib import import_module
-
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
@@ -33,7 +32,7 @@ def inference(data_dir, model_dir, output_dir, args):
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    num_classes = MaskBaseDataset.num_classes  # 18
+    num_classes = MaskBaseDataset.num_3labels_clases  # 48
     model = load_model(model_dir, num_classes, device).to(device)
     model.eval()
 
@@ -57,10 +56,26 @@ def inference(data_dir, model_dir, output_dir, args):
     with torch.no_grad():
         for idx, images in enumerate(loader):
             images = images.to(device)
-            pred = model(images)
-            pred = pred.argmax(dim=-1)
-            preds.extend(pred.cpu().numpy())
+            pr = model(images)
+            (mask, gender, age) = torch.split(pr, [3,2,43], dim = 1)
+            
+            mask_pred = mask.argmax(dim=-1)
+            gender_pred = gender.argmax(dim=-1)
+            age_pred = age.argmax(dim=-1)
+            
+            condition1 = age_pred <= 11
+            condition2 = (age_pred > 11) & (age_pred <= 41)
+            condition3 = age_pred == 42
 
+
+            age_pred[condition1] = 0
+            age_pred[condition2] = 1
+            age_pred[condition3] = 2
+            
+            pred = mask_pred * 6 + gender_pred * 3 + age_pred
+            preds.extend(pred.cpu().numpy())
+            
+            
     info['ans'] = preds
     save_path = os.path.join(output_dir, f'output.csv')
     info.to_csv(save_path, index=False)
@@ -73,12 +88,13 @@ if __name__ == '__main__':
     # Data and model checkpoints directories
     parser.add_argument('--batch_size', type=int, default=1000, help='input batch size for validing (default: 1000)')
     parser.add_argument('--resize', type=tuple, default=(96, 128), help='resize size for image when you trained (default: (96, 128))')
-    parser.add_argument('--model', type=str, default='BaseModel', help='model type (default: BaseModel)')
+    parser.add_argument('--model', type=str, default='MyModel', help='model type (default: BaseModel)')
 
     # Container environment
     parser.add_argument('--data_dir', type=str, default=os.environ.get('SM_CHANNEL_EVAL', '/opt/ml/input/data/eval'))
-    parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_CHANNEL_MODEL', './model/exp'))
-    parser.add_argument('--output_dir', type=str, default=os.environ.get('SM_OUTPUT_DATA_DIR', './output'))
+    parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_CHANNEL_MODEL', '/opt/ml/v2/model/04-19-00:49:24'))
+    parser.add_argument('--output_dir', type=str, default=os.environ.get('SM_OUTPUT_DATA_DIR', '/opt/ml/v2/model/04-19-00:49:24/output'))
+
 
     args = parser.parse_args()
 

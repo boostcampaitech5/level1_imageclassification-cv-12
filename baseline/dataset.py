@@ -32,7 +32,6 @@ class BaseAugmentation:
         return self.transform(image)
 
 
-
 class AddGaussianNoise(object):
     """
         transform 에 없는 기능들은 이런식으로 __init__, __call__, __repr__ 부분을
@@ -104,11 +103,157 @@ class AgeLabels(int, Enum):
             return cls.MIDDLE
         else:
             return cls.OLD
+        
+# age 세분화: 클래스 추가
+class NewAgeLabels(int, Enum):
+    EIGHTEEN = 0
+    NINETEEN = 1
+    TWENTY = 2
+    TWENTYONE = 3
+    TWENTYTWO = 4
+    TWENTYTHREE = 5
+    TWENTYFOUR = 6
+    TWENTYFIVE = 7
+    TWENTYSIX = 8
+    TWENTYSEVEN = 9
+    TWENTYEIGHT = 10
+    TWENTYNINE = 11
+    THIRTY = 12
+    THIRTYONE = 13
+    THIRTYTWO = 14
+    THIRTYTHREE = 15
+    THIRTYFOUR = 16
+    THIRTYFIVE = 17
+    THIRTYSIX = 18
+    THIRTYSEVEN = 19
+    THIRTYEIGHT = 20
+    THIRTYNINE = 21
+    FORTY = 22
+    FORTYONE = 23
+    FORTYTWO = 24
+    FORTYTHREE = 25
+    FORTYFOUR = 26
+    FORTYFIVE = 27
+    FORTYSIX = 28
+    FORTYSEVEN = 29
+    FORTYEIGHT = 30
+    FORTYNINE = 31
+    FIFTY = 32
+    FIFTYONE = 33
+    FIFTYTWO = 34
+    FIFTYTHREE = 35
+    FIFTYFOUR = 36
+    FIFTYFIVE = 37
+    FIFTYSIX = 38
+    FIFTYSEVEN = 39
+    FIFTYEIGHT = 40
+    FIFTYNINE = 41
+    SIXTY = 42
+    
+    @classmethod
+    def from_number(cls, value: str) -> int:
+        try:
+            value = int(value)
+        except Exception:
+            raise ValueError(f"Age value should be numeric, {value}")
+
+        if value == 18:
+            return cls.EIGHTEEN
+        elif value == 19:
+            return cls.NINETEEN
+        elif value == 20:
+            return cls.TWENTY
+        elif value == 21:
+            return cls.TWENTYONE
+        elif value == 22:
+            return cls.TWENTYTWO
+        elif value == 23:
+            return cls.TWENTYTHREE
+        elif value == 24:
+            return cls.TWENTYFOUR
+        elif value == 25:
+            return cls.TWENTYFIVE
+        elif value == 26:
+            return cls.TWENTYSIX
+        elif value == 27:
+            return cls.TWENTYSEVEN
+        elif value == 28:
+            return cls.TWENTYEIGHT
+        elif value == 29:
+            return cls.TWENTYNINE
+        elif value == 30:
+            return cls.THIRTY
+        elif value == 31:
+            return cls.THIRTYONE
+        elif value == 32:
+            return cls.THIRTYTWO
+        elif value == 33:
+            return cls.THIRTYTHREE
+        elif value == 34:
+            return cls.THIRTYFOUR
+        elif value == 35:
+            return cls.THIRTYFIVE
+        elif value == 36:
+            return cls.THIRTYSIX
+        elif value == 37:
+            return cls.THIRTYSEVEN
+        elif value == 38:
+            return cls.THIRTYEIGHT
+        elif value == 39:
+            return cls.THIRTYNINE
+        elif value == 40:
+            return cls.FORTY
+        elif value == 41:
+            return cls.FORTYONE
+        elif value == 42:
+            return cls.FORTYTWO
+        elif value == 43:
+            return cls.FORTYTHREE
+        elif value == 44:
+            return cls.FORTYFOUR
+        elif value == 45:
+            return cls.FORTYFIVE
+        elif value == 46:
+            return cls.FORTYSIX
+        elif value == 47:
+            return cls.FORTYSEVEN
+        elif value == 48:
+            return cls.FORTYEIGHT
+        elif value == 49:
+            return cls.FORTYNINE
+        elif value == 50:
+            return cls.FIFTY
+        elif value == 51:
+            return cls.FIFTYONE
+        elif value == 52:
+            return cls.FIFTYTWO
+        elif value == 53:
+            return cls.FIFTYTHREE
+        elif value == 54:
+            return cls.FIFTYFOUR
+        elif value == 55:
+            return cls.FIFTYFIVE
+        elif value == 56:
+            return cls.FIFTYSIX
+        elif value == 57:
+            return cls.FIFTYSEVEN
+        elif value == 58:
+            return cls.FIFTYEIGHT
+        elif value == 59:
+            return cls.FIFTYNINE
+        elif value == 60:
+            return cls.SIXTY
+        else:
+            raise ValueError("Invalid number value: {}".format(value))
+
+
 
 
 class MaskBaseDataset(Dataset):
     num_classes = 3 * 2 * 3
-
+    num_age_classes = 43
+    num_3labels_clases = 3 + 2 + 43
+    
     _file_names = {
         "mask1": MaskLabels.MASK,
         "mask2": MaskLabels.MASK,
@@ -123,7 +268,9 @@ class MaskBaseDataset(Dataset):
     mask_labels = []
     gender_labels = []
     age_labels = []
-
+    # age 세분화: 라벨 추가
+    new_age_labels = []
+    
     def __init__(self, data_dir, mean=(0.548, 0.504, 0.479), std=(0.237, 0.247, 0.246), val_ratio=0.2):
         self.data_dir = data_dir
         self.mean = mean
@@ -152,12 +299,16 @@ class MaskBaseDataset(Dataset):
                 id, gender, race, age = profile.split("_")
                 gender_label = GenderLabels.from_str(gender)
                 age_label = AgeLabels.from_number(age)
-
+                # age 세분화: 라벨 추가
+                new_age_label = NewAgeLabels.from_number(age)
+                
                 self.image_paths.append(img_path)
                 self.mask_labels.append(mask_label)
                 self.gender_labels.append(gender_label)
                 self.age_labels.append(age_label)
-
+                # age 세분화: 라벨 추가
+                self.new_age_labels.append(new_age_label)
+                
     def calc_statistics(self):
         has_statistics = self.mean is not None and self.std is not None
         if not has_statistics:
@@ -182,10 +333,12 @@ class MaskBaseDataset(Dataset):
         mask_label = self.get_mask_label(index)
         gender_label = self.get_gender_label(index)
         age_label = self.get_age_label(index)
+        # age 세분화 작업
+        new_age_label = self.get_new_age_label(index)
         multi_class_label = self.encode_multi_class(mask_label, gender_label, age_label)
 
         image_transform = self.transform(image)
-        return image_transform, multi_class_label
+        return image_transform, (mask_label, gender_label, age_label, new_age_label), multi_class_label
 
     def __len__(self):
         return len(self.image_paths)
@@ -198,6 +351,10 @@ class MaskBaseDataset(Dataset):
 
     def get_age_label(self, index) -> AgeLabels:
         return self.age_labels[index]
+    # age세분화: 함수 추가
+    def get_new_age_label(self, index) -> NewAgeLabels:
+        return self.new_age_labels[index]
+    
 
     def read_image(self, index):
         image_path = self.image_paths[index]
@@ -206,7 +363,7 @@ class MaskBaseDataset(Dataset):
     @staticmethod
     def encode_multi_class(mask_label, gender_label, age_label) -> int:
         return mask_label * 6 + gender_label * 3 + age_label
-
+# 여기 새 클래스 들어가야 되나?
     @staticmethod
     def decode_multi_class(multi_class_label) -> Tuple[MaskLabels, GenderLabels, AgeLabels]:
         mask_label = (multi_class_label // 6) % 3
@@ -281,12 +438,15 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
                     id, gender, race, age = profile.split("_")
                     gender_label = GenderLabels.from_str(gender)
                     age_label = AgeLabels.from_number(age)
+                    #age 세분화
+                    new_age_label = NewAgeLabels.from_number(age)
+
 
                     self.image_paths.append(img_path)
                     self.mask_labels.append(mask_label)
                     self.gender_labels.append(gender_label)
                     self.age_labels.append(age_label)
-
+                    self.new_age_labels.append(age_label)
                     self.indices[phase].append(cnt)
                     cnt += 1
 
