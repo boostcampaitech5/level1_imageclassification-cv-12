@@ -103,7 +103,8 @@ class AgeLabels(int, Enum):
             return cls.MIDDLE
         else:
             return cls.OLD
-        
+
+
 # age 세분화: 클래스 추가
 class NewAgeLabels(int, Enum):
     EIGHTEEN = 0
@@ -247,12 +248,10 @@ class NewAgeLabels(int, Enum):
             raise ValueError("Invalid number value: {}".format(value))
 
 
-
-
 class MaskBaseDataset(Dataset):
-    num_classes = 3 * 2 * 3
-    num_age_classes = 43
-    num_3labels_clases = 3 + 2 + 43
+    # num_classes = 3 * 2 * 3
+    # num_classes = 3 + 2 + 3
+    num_classes = 3 + 2 + 43 # Multi Label Classification
     
     _file_names = {
         "mask1": MaskLabels.MASK,
@@ -268,7 +267,6 @@ class MaskBaseDataset(Dataset):
     mask_labels = []
     gender_labels = []
     age_labels = []
-    # age 세분화: 라벨 추가
     new_age_labels = []
     
     def __init__(self, data_dir, mean=(0.548, 0.504, 0.479), std=(0.237, 0.247, 0.246), val_ratio=0.2):
@@ -299,15 +297,13 @@ class MaskBaseDataset(Dataset):
                 id, gender, race, age = profile.split("_")
                 gender_label = GenderLabels.from_str(gender)
                 age_label = AgeLabels.from_number(age)
-                # age 세분화: 라벨 추가
                 new_age_label = NewAgeLabels.from_number(age)
-                
                 self.image_paths.append(img_path)
                 self.mask_labels.append(mask_label)
                 self.gender_labels.append(gender_label)
                 self.age_labels.append(age_label)
-                # age 세분화: 라벨 추가
                 self.new_age_labels.append(new_age_label)
+                
                 
     def calc_statistics(self):
         has_statistics = self.mean is not None and self.std is not None
@@ -333,12 +329,12 @@ class MaskBaseDataset(Dataset):
         mask_label = self.get_mask_label(index)
         gender_label = self.get_gender_label(index)
         age_label = self.get_age_label(index)
-        # age 세분화 작업
         new_age_label = self.get_new_age_label(index)
-        multi_class_label = self.encode_multi_class(mask_label, gender_label, age_label)
+        # multi_class_label = self.encode_multi_class(mask_label, gender_label, age_label) # remove for Multi Label Classification
 
         image_transform = self.transform(image)
-        return image_transform, (mask_label, gender_label, age_label, new_age_label), multi_class_label
+        # return image_transform, multi_class_label
+        return image_transform, (mask_label, gender_label, age_label, new_age_label) # Multi Label Classification
 
     def __len__(self):
         return len(self.image_paths)
@@ -351,10 +347,9 @@ class MaskBaseDataset(Dataset):
 
     def get_age_label(self, index) -> AgeLabels:
         return self.age_labels[index]
-    # age세분화: 함수 추가
+
     def get_new_age_label(self, index) -> NewAgeLabels:
         return self.new_age_labels[index]
-    
 
     def read_image(self, index):
         image_path = self.image_paths[index]
@@ -363,7 +358,7 @@ class MaskBaseDataset(Dataset):
     @staticmethod
     def encode_multi_class(mask_label, gender_label, age_label) -> int:
         return mask_label * 6 + gender_label * 3 + age_label
-# 여기 새 클래스 들어가야 되나?
+
     @staticmethod
     def decode_multi_class(multi_class_label) -> Tuple[MaskLabels, GenderLabels, AgeLabels]:
         mask_label = (multi_class_label // 6) % 3
@@ -438,15 +433,12 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
                     id, gender, race, age = profile.split("_")
                     gender_label = GenderLabels.from_str(gender)
                     age_label = AgeLabels.from_number(age)
-                    #age 세분화
-                    new_age_label = NewAgeLabels.from_number(age)
-
 
                     self.image_paths.append(img_path)
                     self.mask_labels.append(mask_label)
                     self.gender_labels.append(gender_label)
                     self.age_labels.append(age_label)
-                    self.new_age_labels.append(age_label)
+
                     self.indices[phase].append(cnt)
                     cnt += 1
 

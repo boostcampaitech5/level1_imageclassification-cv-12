@@ -17,7 +17,12 @@ from torch.utils.tensorboard import SummaryWriter
 
 from dataset import MaskBaseDataset
 from loss import create_criterion
+
+# newly imported
+from datetime import datetime
 import wandb
+import random
+import optuna
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -82,10 +87,15 @@ def increment_path(path, exist_ok=False):
         return f"{path}{n}"
 
 
-def train(data_dir, model_dir, args):
+def train(data_dir, model_dir, args, trial):
     seed_everything(args.seed)
-    save_dir = increment_path(os.path.join(model_dir, args.name))
-    
+
+    # set directory for saving test results 
+    now = datetime.now()
+    folder_name = now.strftime('%Y-%m-%d-%H:%M:%S')
+    save_dir = increment_path(os.path.join(model_dir, folder_name))
+    # save_dir = increment_path(os.path.join(model_dir, args.name))
+
     # -- settings
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -95,7 +105,7 @@ def train(data_dir, model_dir, args):
     dataset = dataset_module(
         data_dir=data_dir,
     )
-    num_classes = dataset.num_3labels_clases  # 18
+    num_classes = dataset.num_classes  # 18
 
     # -- augmentation
     transform_module = getattr(import_module("dataset"), args.augmentation)  # default: BaseAugmentation
@@ -106,12 +116,18 @@ def train(data_dir, model_dir, args):
     )
     dataset.set_transform(transform)
 
+    # settings for optuna
+    opt_epochs = trial.suggest_int('epochs', 50, 80, 100) # newly added (default: 80)
+    opt_optm = trial.suggest_categorical("opt_optm", ["SGD", "Adam", "AdamW", "RMSprop"])
+    opt_lr = trial.suggest_loguniform('opt_lr', 1e-3, 1e-2)
+    opt_batchSize = trial.suggest_categorical('opt_batchSize', [64, 32, 16])
+
     # -- data_loader
     train_set, val_set = dataset.split_dataset()
 
     train_loader = DataLoader(
         train_set,
-        batch_size=args.batch_size,
+        batch_size= opt_batchSize, # args.batch_size,
         num_workers=multiprocessing.cpu_count() // 2,
         shuffle=True,
         pin_memory=use_cuda,
@@ -134,12 +150,12 @@ def train(data_dir, model_dir, args):
     ).to(device)
     model = torch.nn.DataParallel(model)
 
-    # -- loss & metric
+    # -- loss & metric (use optuna for epochs / lr / optimizer)
     criterion = create_criterion(args.criterion)  # default: cross_entropy
-    opt_module = getattr(import_module("torch.optim"), args.optimizer)  # default: SGD
+    opt_module = getattr(import_module("torch.optim"), opt_optm) # args.optimizer (default: SGD)
     optimizer = opt_module(
         filter(lambda p: p.requires_grad, model.parameters()),
-        lr=args.lr,
+        lr=opt_lr, # args.lr (default: 1e-3)
         weight_decay=5e-4
     )
     scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
@@ -149,77 +165,66 @@ def train(data_dir, model_dir, args):
     with open(os.path.join(save_dir, 'config.json'), 'w', encoding='utf-8') as f:
         json.dump(vars(args), f, ensure_ascii=False, indent=4)
 
-    best_val_acc = 0
-    best_val_loss = np.inf
     # -- wandb initialize with configuration
     config={
-        "epochs": args.epochs,
-        "batch_size": args.batch_size,
-        "learning_rate" : args.lr,
+        "epochs": opt_epochs, # args.epochs, 
+        "batch_size": opt_batchSize, # args.batch_size,
+        "learning_rate" : opt_lr, # args.lr,
+        "optimizer" : opt_optm, 
         "architecture" : args.model
     }
-    wandb.init(project="MaskClassification",
-               config=config,
-               name = 'resnet50' + '-' + folder_name)
-    
-    for epoch in range(args.epochs):
+    wandb.init(project="naver_boostcamp_AI_Tech_Level1", config=config)
+
+    best_val_acc = 0
+    best_val_loss = np.inf
+
+    for epoch in range(opt_epochs): # range(args.epochs)
+        early_stop_patience = 5  
+        no_improvement_count = 0
         # train loop
         model.train()
         loss_value = 0
-        mask_matches = 0
-        gender_matches = 0
-        age_matches = 0
-
+        matches = 0
         for idx, train_batch in enumerate(train_loader):
-            inputs, (mask_labels, gender_labels, age_labels, new_age_labels), _ = train_batch
+            inputs, labels = train_batch
+            inputs = inputs.to(device)
+            labels = labels.to(device)
 
-            mask_labels = mask_labels.to(device)
-            gender_labels = gender_labels.to(device)
-            age_labels = new_age_labels.to(device)
-            
             optimizer.zero_grad()
-            outs = model(inputs)
-            (mask_outs, gender_outs, age_outs) = torch.split(outs, [3,2,43], dim = 1)
-            
-            mask_preds = torch.argmax(mask_outs, dim=-1)
-            gender_preds = torch.argmax(gender_outs, dim=-1)
-            age_preds = torch.argmax(age_outs, dim=-1)
-            
-            
-            mask_loss = criterion(mask_outs, mask_labels)
-            gender_loss = criterion(gender_outs, gender_labels)
-            age_loss = criterion(age_outs, age_labels)
 
-            loss = mask_loss + gender_loss + age_loss
+            outs = model(inputs)
+            preds = torch.argmax(outs, dim=-1)
+            loss = criterion(outs, labels)
+
             loss.backward()
             optimizer.step()
 
             loss_value += loss.item()
-            mask_matches += (mask_preds == mask_labels).sum().item()
-            age_matches += (age_preds == age_labels).sum().item()
-            gender_matches += (gender_preds == gender_labels).sum().item()
-            
+            matches += (preds == labels).sum().item()
+
             if (idx + 1) % args.log_interval == 0:
                 train_loss = loss_value / args.log_interval
-                train_acc = (mask_matches + age_matches + gender_matches) / args.batch_size / args.log_interval / 3
+                train_acc = matches / opt_batchSize / args.log_interval
+                # train_acc = (matches / args.batch_size / args.log_interval) # Multi Label Classification
+                # train_acc = (matches / opt_batchSize / args.log_interval) / 3 # Multi Label Classification # optuna
                 current_lr = get_lr(optimizer)
                 print(
-                    f"Epoch[{epoch}/{args.epochs}]({idx + 1}/{len(train_loader)}) || "
+                    # f"Epoch[{epoch}/{args.epochs}]({idx + 1}/{len(train_loader)}) || "
+                    f"Epoch[{epoch}/{opt_epochs}]({idx + 1}/{len(train_loader)}) || " # optuna
                     f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || lr {current_lr}"
                 )
                 logger.add_scalar("Train/loss", train_loss, epoch * len(train_loader) + idx)
                 logger.add_scalar("Train/accuracy", train_acc, epoch * len(train_loader) + idx)
 
                 loss_value = 0
-                mask_matches = 0
-                gender_matches = 0
-                age_matches = 0
-                
-# logging wandb train phase
+                matches = 0
+        
+        # logging wandb train phase
         wandb.log({
-            'Train acc': train_acc,
+            'Train acc': train_acc, 
             'Train loss': train_loss
         })
+
         scheduler.step()
 
         # val loop
@@ -230,103 +235,86 @@ def train(data_dir, model_dir, args):
             val_acc_items = []
             figure = None
             for val_batch in val_loader:
-                inputs, (mask_labels, gender_labels, _, age_labels), _= val_batch
+                inputs, labels = val_batch
+                inputs = inputs.to(device)
+                labels = labels.to(device)
 
                 outs = model(inputs)
-                (mask_outs, gender_outs, age_outs) = torch.split(outs, [3, 2, 43], dim = 1)
-                
-                mask_labels = mask_labels.to(device)
-                gender_labels = gender_labels.to(device)
-                age_labels = age_labels.to(device)
-                
-                mask_preds = torch.argmax(mask_outs, dim=-1)
-                gender_preds = torch.argmax(gender_outs, dim=-1)
-                age_preds = torch.argmax(age_outs, dim=-1)
-                
-                mask_loss_item = criterion(mask_outs, mask_labels).item()
-                gender_loss_item = criterion(gender_outs, gender_labels).item()
-                age_loss_item = criterion(age_outs, age_labels).item()
-            
-                acc_item = (mask_labels == mask_preds).sum().item()
-                acc_item += (gender_labels == gender_preds).sum().item()
-                acc_item += (age_labels == age_preds).sum().item()
-                acc_item
-                
-                
-                val_loss_items.append(mask_loss_item)
-                val_loss_items.append(gender_loss_item)
-                val_loss_items.append(age_loss_item)
+                preds = torch.argmax(outs, dim=-1)
+
+                loss_item = criterion(outs, labels).item()
+                acc_item = (labels == preds).sum().item()
+                val_loss_items.append(loss_item)
                 val_acc_items.append(acc_item)
 
                 if figure is None:
                     inputs_np = torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
                     inputs_np = dataset_module.denormalize_image(inputs_np, dataset.mean, dataset.std)
                     figure = grid_image(
-                        inputs_np, mask_labels, mask_preds, n=16, shuffle=args.dataset != "MaskSplitByProfileDataset"
+                        inputs_np, labels, preds, n=16, shuffle=args.dataset != "MaskSplitByProfileDataset"
                     )
-                    figure = grid_image(
-                        inputs_np, gender_labels, gender_preds, n=16, shuffle=args.dataset != "MaskSplitByProfileDataset"
-                    )
-                    figure = grid_image(
-                        inputs_np, age_labels, age_preds, n=16, shuffle=args.dataset != "MaskSplitByProfileDataset"
-                    )
-                    
+
             val_loss = np.sum(val_loss_items) / len(val_loader)
-            val_acc = np.sum(val_acc_items) / len(val_set) / 3
+            val_acc = np.sum(val_acc_items) / len(val_set)
+            # val_acc = np.sum(val_acc_items) / len(val_set) / 3 # Multi Label classification
             best_val_loss = min(best_val_loss, val_loss)
             if val_acc > best_val_acc:
                 print(f"New best model for val accuracy : {val_acc:4.2%}! saving the best model..")
                 torch.save(model.module.state_dict(), f"{save_dir}/best.pth")
                 best_val_acc = val_acc
+                no_improvement_count = 0 
+            else:
+                print(f"Current best val accuracy : {best_val_acc:4.2%}")
+                no_improvement_count += 1
+            if no_improvement_count >= early_stop_patience:
+                print("Early stopping... no improvement for 5 epochs")
+                break
+                        
+
+
             torch.save(model.module.state_dict(), f"{save_dir}/last.pth")
             print(
                 f"[Val] acc : {val_acc:4.2%}, loss: {val_loss:4.2} || "
                 f"best acc : {best_val_acc:4.2%}, best loss: {best_val_loss:4.2}"
             )
-            
-            
             logger.add_scalar("Val/loss", val_loss, epoch)
             logger.add_scalar("Val/accuracy", val_acc, epoch)
             logger.add_figure("results", figure, epoch)
             print()
-            
+
             # logging wandb valid phase
             wandb.log({
-                'Valid acc': val_acc,
+                'Valid acc': val_acc, 
                 'Valid loss': val_loss
             })
-            
-## 로그 시간 지정하기
-from datetime import datetime
-import pytz
+        
+        # optuna (Add prune mechanism)
+        trial.report(val_acc, epoch)
+        if trial.should_prune():
+            raise optuna.exceptions.TrialPruned()
 
-UTC = pytz.timezone('UTC')
-KST = pytz.timezone('Asia/Seoul')
+    wandb.finish()
 
-now = datetime.utcnow()
-now_utc = now.replace(tzinfo=UTC)
-now_kst=now_utc.astimezone(KST)
-folder_name = now_kst.strftime('%m-%d-%H:%M:%S')
 
-if __name__ == '__main__':
+def objective(trial):
     parser = argparse.ArgumentParser()
 
     # Data and model checkpoints directories
     parser.add_argument('--seed', type=int, default=42, help='random seed (default: 42)')
-    parser.add_argument('--epochs', type=int, default=100, help='number of epochs to train (default: 1)')
+    parser.add_argument('--epochs', type=int, default=80, help='number of epochs to train (default: 1)') # default=80
     parser.add_argument('--dataset', type=str, default='MaskBaseDataset', help='dataset augmentation type (default: MaskBaseDataset)')
-    parser.add_argument('--augmentation', type=str, default='CustomAugmentation', help='data augmentation type (default: BaseAugmentation)')
+    parser.add_argument('--augmentation', type=str, default='BaseAugmentation', help='data augmentation type (default: BaseAugmentation)')
     parser.add_argument("--resize", nargs="+", type=list, default=[128, 96], help='resize size for image when training')
     parser.add_argument('--batch_size', type=int, default=64, help='input batch size for training (default: 64)')
     parser.add_argument('--valid_batch_size', type=int, default=1000, help='input batch size for validing (default: 1000)')
     parser.add_argument('--model', type=str, default='MyModel', help='model type (default: BaseModel)')
-    parser.add_argument('--optimizer', type=str, default='Adam', help='optimizer type (default: SGD)')
+    parser.add_argument('--optimizer', type=str, default='SGD', help='optimizer type (default: SGD)')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate (default: 1e-3)')
     parser.add_argument('--val_ratio', type=float, default=0.2, help='ratio for validaton (default: 0.2)')
-    parser.add_argument('--criterion', type=str, default='label_smoothing', help='criterion type (default: cross_entropy)')
+    parser.add_argument('--criterion', type=str, default='cross_entropy', help='criterion type (default: cross_entropy)')
     parser.add_argument('--lr_decay_step', type=int, default=20, help='learning rate scheduler deacy step (default: 20)')
     parser.add_argument('--log_interval', type=int, default=20, help='how many batches to wait before logging training status')
-    parser.add_argument('--name', default=folder_name, help='model save at {SM_MODEL_DIR}/{name}')
+    parser.add_argument('--name', default='exp', help='model save at {SM_MODEL_DIR}/{name}')
 
     # Container environment
     parser.add_argument('--data_dir', type=str, default=os.environ.get('SM_CHANNEL_TRAIN', '/opt/ml/input/data/train/images'))
@@ -334,7 +322,34 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     print(args)
+
     data_dir = args.data_dir
     model_dir = args.model_dir
 
-    train(data_dir, model_dir, args)
+    train(data_dir, model_dir, args, trial)
+
+
+if __name__ == '__main__':
+    study = optuna.create_study(sampler=optuna.samplers.TPESampler(), direction='maximize') # optuna
+    study.optimize(objective, n_trials=30)
+
+    # optuna
+    print("\nOptuna")
+    pruned_trials = [t for t in study.trials if t.state == optuna.structs.TrialState.PRUNED]
+    complete_trials = [t for t in study.trials if t.state == optuna.structs.TrialState.COMPLETE]
+
+    print("Study statistics: ")
+    print("  Number of finished trials: ", len(study.trials))
+    print("  Number of pruned trials: ", len(pruned_trials))
+    print("  Number of complete trials: ", len(complete_trials))
+
+    print("Best Trial:")
+    best_trial = study.best_trial
+    print("Value: ", best_trial.value)
+    for key, value in best_trial.params.items():
+        print("    {}: {}".format(key, value))
+
+    optuna.visualization.plot_intermediate_values(study)
+    optuna.visualization.plot_optimization_history(study)
+    optuna.visualization.plot_parallel_coordinate(study)
+    optuna.visualization.plot_param_importances(study)
