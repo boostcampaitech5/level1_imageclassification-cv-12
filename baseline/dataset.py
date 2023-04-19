@@ -32,6 +32,7 @@ class BaseAugmentation:
         return self.transform(image)
 
 
+
 class AddGaussianNoise(object):
     """
         transform 에 없는 기능들은 이런식으로 __init__, __call__, __repr__ 부분을
