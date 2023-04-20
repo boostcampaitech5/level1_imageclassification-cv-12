@@ -22,6 +22,7 @@ from loss import create_criterion
 from datetime import datetime
 import wandb
 import random
+import cv2
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -85,6 +86,19 @@ def increment_path(path, exist_ok=False):
         n = max(i) + 1 if i else 2
         return f"{path}{n}"
 
+def CLAHE(image):
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+
+    print('-'*20)
+    print(image.shape)
+
+    hsv_img = cv2.cvtColor(np.float32(image), cv2.COLOR_BGR2GRAY)
+    h,s,v = cv2.split(hsv_img)
+    v = clache.apply(v)
+    clahe_img = cv2.merge(h,s,v)
+    final_img = cv2.cvtColor(clahe_img, cv2.COLOR_HSV2BGR)
+
+    return final_img
 
 def train(data_dir, model_dir, args):
     seed_everything(args.seed)
@@ -200,6 +214,7 @@ def train(data_dir, model_dir, args):
 
             # Multi Label Classification
             inputs, (mask_labels, gender_labels, age_labels) = train_batch
+            # inputs = CLAHE(inputs)  # CLAHE
             inputs = inputs.to(device)
             mask_labels = mask_labels.to(device)
             gender_labels = gender_labels.to(device)
