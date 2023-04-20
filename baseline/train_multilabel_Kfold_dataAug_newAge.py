@@ -199,7 +199,7 @@ def train(data_dir, model_dir, folder_name, args):
             # matches += (preds == labels).sum().item()
 
             # Multi Label Classification
-            inputs, (mask_labels, gender_labels, age_labels) = train_batch
+            inputs, (mask_labels, gender_labels, _, age_labels) = train_batch
             inputs = inputs.to(device)
             mask_labels = mask_labels.to(device)
             gender_labels = gender_labels.to(device)
@@ -275,21 +275,29 @@ def train(data_dir, model_dir, folder_name, args):
                 # val_acc_items.append(acc_item)
 
                 # Multi Label Classification
-                inputs, (mask_labels, gender_labels, age_labels) = val_batch
+                inputs, (mask_labels, gender_labels, age_labels, new_age_labels) = val_batch
                 inputs = inputs.to(device)
                 mask_labels = mask_labels.to(device)
                 gender_labels = gender_labels.to(device)
                 age_labels = age_labels.to(device)
-
+                new_age_labels = new_age_labels.to(device)
+                
                 outs = model(inputs)
                 (mask_outs, gender_outs, age_outs) = torch.split(outs, [3,2,43], dim=1)
                 mask_preds = torch.argmax(mask_outs, dim=-1)
                 gender_preds = torch.argmax(gender_outs, dim=-1)
                 age_preds = torch.argmax(age_outs, dim=-1)
 
+                condition1 = age_preds <= 11
+                condition2 = (age_preds > 11) & (age_preds <= 41)
+                condition3 = age_preds > 41
+                age_preds[condition1] = 0
+                age_preds[condition2] = 1
+                age_preds[condition3] = 2
+                
                 mask_loss_item = criterion(mask_outs, mask_labels).item()
                 gender_loss_item = criterion(gender_outs, gender_labels).item()
-                age_loss_item = criterion(age_outs, age_labels).item()
+                age_loss_item = criterion(age_outs, new_age_labels).item()
                 loss_item = mask_loss_item + gender_loss_item + age_loss_item
                 # loss_item = mask_loss_item + gender_loss_item + 1.5*age_loss_item
                 val_loss_items.append(loss_item)
