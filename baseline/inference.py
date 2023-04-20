@@ -64,10 +64,18 @@ def inference(data_dir, model_dir, output_dir, args):
             # Multi Label Classification
             images = images.to(device)
             pred = model(images)
-            (mask_label, gender_label, age_label) = torch.split(pred, [3,2,3], dim=1)
+            (mask_label, gender_label, age_label) = torch.split(pred, [3,2,43], dim=1)
             mask_pred = torch.argmax(mask_label, dim=-1)
             gender_pred = torch.argmax(gender_label, dim=-1)
             age_pred = torch.argmax(age_label, dim=-1)
+            # age 43 -> 3
+            condition1 = age_pred <= 11
+            condition2 = (age_pred > 11) & (age_pred <= 41)
+            condition3 = age_pred > 41
+            age_pred[condition1] = 0
+            age_pred[condition2] = 1
+            age_pred[condition3] = 2
+            
             pred = MaskBaseDataset.encode_multi_class(mask_pred, gender_pred, age_pred)
             preds.extend(pred.cpu().numpy())
 
