@@ -371,7 +371,7 @@ class MaskBaseDataset(Dataset):
         image_transform = self.transform(image)
         # return image_transform, multi_class_label
         # return image_transform, (mask_label, gender_label, age_label) # Multi Label Classification
-        return image_transform, (mask_label, gender_label, new_age_label) # Multi Label Classification (NewAgeLabel)
+        return image_transform, (mask_label, gender_label, age_label, new_age_label) # Multi Label Classification (NewAgeLabel)
 
     def __len__(self):
         return len(self.image_paths)
