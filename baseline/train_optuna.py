@@ -175,16 +175,12 @@ def train(data_dir, model_dir, args, trial):
     }
     wandb.init(project="naver_boostcamp_AI_Tech_Level1", config=config)
 
-    best_val_acc = 0
-    best_val_loss = np.inf
-<<<<<<< HEAD:baseline/train_optuna.py
-    for epoch in range(opt_epochs): # range(args.epochs)
-=======
-
     early_stop_patience = 5  
     no_improvement_count = 0
-    for epoch in range(args.epochs):
->>>>>>> 281dbdb4f073cc07199851be7719b5be7e7d6b47:baseline/train.py
+    
+    best_val_acc = 0
+    best_val_loss = np.inf
+    for epoch in range(opt_epochs): # range(args.epochs)
         # train loop
         model.train()
         loss_value = 0

@@ -1,7 +1,9 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
+# newly imported
 import torchvision.models as models
+import timm
 
 class BaseModel(nn.Module):
     def __init__(self, num_classes):
@@ -38,9 +40,6 @@ class BaseModel(nn.Module):
 class MyModel(nn.Module):
     def __init__(self, num_classes):
         super().__init__()
-        self.model = models.resnet101(pretrained=True)
-        num_features = self.model.fc.in_features
-        self.model.fc = nn.Linear(num_features, num_classes)
 
         """
         1. 위와 같이 생성자의 parameter 에 num_claases 를 포함해주세요.
@@ -56,9 +55,9 @@ class MyModel(nn.Module):
         # num_features = self.resnet34_pretrained.fc.in_features
         # self.resnet34_pretrained.fc = nn.Linear(num_features, num_classes)
 
-        self.resnet50_pretrained = models.resnet50(pretrained=True)
-        num_features = self.resnet50_pretrained.fc.in_features
-        self.resnet50_pretrained.fc = nn.Linear(num_features, num_classes)
+        # self.resnet50_pretrained = models.resnet50(pretrained=True)
+        # num_features = self.resnet50_pretrained.fc.in_features
+        # self.resnet50_pretrained.fc = nn.Linear(num_features, num_classes)
 
         # self.resnet101_pretrained = models.resnet101(pretrained=True)
         # num_features = self.resnet101_pretrained.fc.in_features
@@ -68,6 +67,9 @@ class MyModel(nn.Module):
         # num_features = self.resnet152_pretrained.fc.in_features
         # self.resnet152_pretrained.fc = nn.Linear(num_features, num_classes)
 
+        self.model = timm.create_model('vit_base_patch16_224', pretrained=True)
+        self.model.head = nn.Linear(self.model.head.in_features, num_classes)
+
 
     def forward(self, x):
         """
@@ -76,8 +78,9 @@ class MyModel(nn.Module):
         """
         # x = self.resnet18_pretrained(x)
         # x = self.resnet34_pretrained(x)
-        x = self.resnet50_pretrained(x)
+        # x = self.resnet50_pretrained(x)
         # x = self.resnet101_pretrained(x)
         # x = self.resnet152_pretrained(x)
+        x = self.model(x)
 
         return x

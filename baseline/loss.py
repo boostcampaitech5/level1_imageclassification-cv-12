@@ -65,6 +65,7 @@ class F1Loss(nn.Module):
         f1 = f1.clamp(min=self.epsilon, max=1 - self.epsilon)
         return 1 - f1.mean()
 
+
 class WeightedCrossEntropy(nn.Module):
     def __init__(self, classes=3, epsilon=1e-7):
         super().__init__()
@@ -85,7 +86,7 @@ class WeightedCrossEntropy(nn.Module):
             loss = F.cross_entropy(y_pred, y_target, weight=nSamples)
 
         return loss
-  
+    
 
 _criterion_entrypoints = {
     'cross_entropy': nn.CrossEntropyLoss,
