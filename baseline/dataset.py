@@ -40,7 +40,7 @@ class BaseAugmentation:
             CenterCrop((320, 256)),
             Grayscale(num_output_channels=3), # channel 1로 변환 하고 싶은데 문제 발생.
             Resize(resize, Image.BILINEAR),
-            ColorJitter(0.1, 0.1, 0.1, 0.1),
+            ColorJitter(0.5, 0.5, 0.1, 0.1),
             #밝기(brightness), 대비(contrast), 채도(saturation), 색조(hue)를 +- 0.1 범위에서 랜덤하게 변화시킴
             ToTensor(),
             Normalize(mean=mean, std=std),

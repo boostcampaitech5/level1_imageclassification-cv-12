@@ -1,0 +1,10 @@
+hyper_parameters:
+  batch_size : 64
+  epochs : 50
+  learning_rate : 1e-4
+
+network_parameters:
+  activation : 'ReLU'
+
+data_dir : '../data'
+model_dir : './Vit'

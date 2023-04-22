@@ -11,7 +11,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from torch.optim.lr_scheduler import StepLR, CosineAnnealingWarmRestarts, CosineAnnealingLR #, ReduceLROnPlateau, OneCycleLR , CyclicLR
+from torch.optim.lr_scheduler import StepLR, CosineAnnealingWarmRestarts, CosineAnnealingLR ,CyclicLR, ExponentialLR
 
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -19,8 +19,6 @@ from torch.utils.tensorboard import SummaryWriter
 from dataset import MaskBaseDataset
 from loss import create_criterion
 
-# cosine annealing warmup
-#from warmup_scheduler import GradualWarmupScheduler
 
 # newly imported
 from datetime import datetime
@@ -109,8 +107,8 @@ def train(data_dir, model_dir, args):
 
     # set directory for saving test results 
     now = datetime.now()
-    folder_name = args.name +now.strftime('%Y-%m-%d-%H:%M')
-    save_dir = increment_path(os.path.join(model_dir,args.folder_name))
+    folder_name = args.name +"_" +now.strftime('%Y-%m-%d-%H:%M:%S')
+    save_dir = increment_path(os.path.join(model_dir,folder_name))
     # save_dir = increment_path(os.path.join(model_dir, args.name))
 
     # -- settings
@@ -173,8 +171,11 @@ def train(data_dir, model_dir, args):
         lr=args.lr,
         weight_decay=5e-4
     )
-    scheduler1 = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
-    scheduler2 = CosineAnnealingLR(optimizer, args.epochs - args.lr_decay_step, eta_min=0, last_epoch=-1)
+    #scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.95)
+    #scheduler00 = CosineAnnealingWarmRestarts(optimizer, T_0=9, T_mult=2, eta_min=0, last_epoch=-1)
+    #scheduler2 = CosineAnnealingLR(optimizer,T_max=10, eta_min=0, last_epoch=-1)
+    scheduler00 = ExponentialLR(optimizer, gamma=0.95)
+    #scheduler00 = CyclicLR(optimizer, base_lr=0.0001, max_lr=0.003, step_size_up=5, step_size_down=5, mode='triangular2', gamma=1.0, scale_fn=None, scale_mode='cycle', cycle_momentum=True, base_momentum=0.8, max_momentum=0.95, last_epoch=-1)
 
 
     # train your model for one epoch
@@ -191,12 +192,12 @@ def train(data_dir, model_dir, args):
         "learning_rate" : args.lr,
         "architecture" : args.model
     }
-    wandb.init(project="naver_boostcamp_AI_Tech_Level1", config=config,name=folder_name)
+    wandb.init(project="naver_boostcamp_AI_Tech_Level1", config=config,name=args.name)
 
     best_val_acc = 0
     best_val_loss = np.inf
     paitence = 0
-    early_stop = args.epochs//7
+    early_stop = args.epochs//5
     print(early_stop)
     for epoch in range(args.epochs):
         # train loop
@@ -279,12 +280,12 @@ def train(data_dir, model_dir, args):
             'Train loss': train_loss
         })
 
-        #scheduler.step()
-    
-        if epoch < args.lr_decay_step:
-            scheduler1.step()
-        else:
-            scheduler2.step()
+        # scheduler.step()
+        scheduler00.step()
+        # if epoch < args.lr_decay_step:
+        #     scheduler1.step()
+        # else:
+        #     scheduler2.step()
 
 
         # val loop
@@ -401,10 +402,10 @@ if __name__ == '__main__':
     parser.add_argument('--valid_batch_size', type=int, default=1000, help='input batch size for validing (default: 1000)')
     parser.add_argument('--model', type=str, default='ViT', help='model type (default: BaseModel)')
     parser.add_argument('--optimizer', type=str, default='SGD', help='optimizer type (default: SGD)')
-    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate (default: 1e-3)')
-    parser.add_argument('--val_ratio', type=float, default=0.2, help='ratio for validaton (default: 0.2)')
+    parser.add_argument('--lr', type=float, default=3e-3, help='learning rate (default: 1e-3)')
+    parser.add_argument('--val_ratio', type=float, default=0.3, help='ratio for validaton (default: 0.2)')
     parser.add_argument('--criterion', type=str, default='cross_entropy', help='criterion type (default: cross_entropy)')
-    parser.add_argument('--lr_decay_step', type=int, default=20, help='learning rate scheduler deacy step (default: 20)')
+    parser.add_argument('--lr_decay_step', type=int, default=1, help='learning rate scheduler deacy step (default: 20)')
     parser.add_argument('--log_interval', type=int, default=20, help='how many batches to wait before logging training status')
     parser.add_argument('--name', default='exp', help='model save at {SM_MODEL_DIR}/{name}')
 
