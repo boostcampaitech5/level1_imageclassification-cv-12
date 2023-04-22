@@ -109,8 +109,8 @@ def train(data_dir, model_dir, args):
 
     # set directory for saving test results 
     now = datetime.now()
-    folder_name = now.strftime('%Y-%m-%d-%H:%M:%S')
-    save_dir = increment_path(os.path.join(model_dir, folder_name))
+    folder_name = args.name +now.strftime('%Y-%m-%d-%H:%M')
+    save_dir = increment_path(os.path.join(model_dir,args.folder_name))
     # save_dir = increment_path(os.path.join(model_dir, args.name))
 
     # -- settings
@@ -191,7 +191,7 @@ def train(data_dir, model_dir, args):
         "learning_rate" : args.lr,
         "architecture" : args.model
     }
-    wandb.init(project="naver_boostcamp_AI_Tech_Level1", config=config)
+    wandb.init(project="naver_boostcamp_AI_Tech_Level1", config=config,name=folder_name)
 
     best_val_acc = 0
     best_val_loss = np.inf
