@@ -11,12 +11,16 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, CosineAnnealingWarmRestarts, CosineAnnealingLR #, ReduceLROnPlateau, OneCycleLR , CyclicLR
+
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from dataset import MaskBaseDataset
 from loss import create_criterion
+
+# cosine annealing warmup
+#from warmup_scheduler import GradualWarmupScheduler
 
 # newly imported
 from datetime import datetime
@@ -169,7 +173,11 @@ def train(data_dir, model_dir, args):
         lr=args.lr,
         weight_decay=5e-4
     )
-    scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
+    scheduler1 = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
+    scheduler2 = CosineAnnealingLR(optimizer, args.epochs - args.lr_decay_step, eta_min=0, last_epoch=-1)
+
+
+    # train your model for one epoch
 
     # -- logging
     logger = SummaryWriter(log_dir=save_dir)
@@ -187,6 +195,9 @@ def train(data_dir, model_dir, args):
 
     best_val_acc = 0
     best_val_loss = np.inf
+    paitence = 0
+    early_stop = args.epochs//7
+    print(early_stop)
     for epoch in range(args.epochs):
         # train loop
         model.train()
@@ -268,7 +279,13 @@ def train(data_dir, model_dir, args):
             'Train loss': train_loss
         })
 
-        scheduler.step()
+        #scheduler.step()
+    
+        if epoch < args.lr_decay_step:
+            scheduler1.step()
+        else:
+            scheduler2.step()
+
 
         # val loop
         with torch.no_grad():
@@ -343,6 +360,15 @@ def train(data_dir, model_dir, args):
                 print(f"New best model for val accuracy : {val_acc:4.2%}! saving the best model..")
                 torch.save(model.module.state_dict(), f"{save_dir}/best.pth")
                 best_val_acc = val_acc
+                paitence=0
+            else:
+                print(f'no improvement for {paitence} epochs')
+                print(f"Best val accuracy : {best_val_acc:4.2%}")
+                print(f'current val accuracy : {val_acc:4.2%}')
+                paitence+=1
+                if paitence >= early_stop:
+                    print('@@@@@ Early stopping @@@@@ !!!!!!! ')
+                    break
             torch.save(model.module.state_dict(), f"{save_dir}/last.pth")
             print(
                 f"[Val] acc : {val_acc:4.2%}, loss: {val_loss:4.2} || "
@@ -358,7 +384,7 @@ def train(data_dir, model_dir, args):
                 'Valid acc': val_acc, 
                 'Valid loss': val_loss
             })
-    
+    logger.close()
     wandb.finish()
 
 

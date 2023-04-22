@@ -8,8 +8,12 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import Dataset, Subset, random_split
-from torchvision.transforms import Resize, ToTensor, Normalize, Compose, CenterCrop, ColorJitter
+from torchvision.transforms import Resize, ToTensor, Normalize, Compose, CenterCrop, ColorJitter, Grayscale
 
+
+from albumentations import (
+    VerticalFlip,ToGray, HorizontalFlip, ShiftScaleRotate, RandomBrightnessContrast, GaussNoise,CLAHE
+)
 IMG_EXTENSIONS = [
     ".jpg", ".JPG", ".jpeg", ".JPEG", ".png",
     ".PNG", ".ppm", ".PPM", ".bmp", ".BMP",
@@ -22,15 +26,40 @@ def is_image_file(filename):
 
 class BaseAugmentation:
     def __init__(self, resize, mean, std, **args):
+
+        self.transform00 = Compose([
+            ToGray(p=1),
+            # CenterCrop(width=256,height=350,p=1),
+            # ShiftScaleRotate(p=1),
+            RandomBrightnessContrast(brightness_limit=(-0.3, 0.3), contrast_limit=(-0.3, 0.3), p=0.5),
+            CLAHE(p=0.7),
+            GaussNoise(var_limit=(1000, 1600), p=0.5),
+        ])
+
         self.transform = Compose([
+            CenterCrop((320, 256)),
+            Grayscale(num_output_channels=3), # channel 1로 변환 하고 싶은데 문제 발생.
             Resize(resize, Image.BILINEAR),
+            ColorJitter(0.1, 0.1, 0.1, 0.1),
+            #밝기(brightness), 대비(contrast), 채도(saturation), 색조(hue)를 +- 0.1 범위에서 랜덤하게 변화시킴
             ToTensor(),
             Normalize(mean=mean, std=std),
         ])
 
     def __call__(self, image):
+        # print(type(image),image.size,'this is image')
+        # print(type(self.transform00(image=image)['image']),self.transform00(image=image)['image'].size)
+        # print(type(self.transform(image)),'transformer')
+        # preaug = np.array(image)
+        # afteraug = self.transform00(preaug)['image']
+        # return self.transform(afteraug)
+        # return self.transform(self.transform00(image=image)['image'])
         return self.transform(image)
 
+# <class 'torch.Tensor'> transformer
+# <class 'torch.Tensor'> transformer
+# <class 'PIL.JpegImagePlugin.JpegImageFile'> (384, 512) this is image
+# <class 'PIL.JpegImagePlugin.JpegImageFile'> (384, 512) this is image
 
 class AddGaussianNoise(object):
     """
@@ -55,9 +84,9 @@ class CustomAugmentation:
             CenterCrop((320, 256)),
             Resize(resize, Image.BILINEAR),
             ColorJitter(0.1, 0.1, 0.1, 0.1),
-            ToTensor(),
-            Normalize(mean=mean, std=std),
-            AddGaussianNoise()
+            # ToTensor(),
+            # Normalize(mean=mean, std=std),
+            # AddGaussianNoise()
         ])
 
     def __call__(self, image):
