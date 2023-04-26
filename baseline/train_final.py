@@ -15,8 +15,8 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from dataset import MaskBaseDataset
-from loss import create_criterion
+from dataset_final import MaskBaseDataset
+from loss_final import create_criterion
 
 # newly imported
 from datetime import datetime
@@ -114,16 +114,14 @@ def train(data_dir, model_dir, args):
     device = torch.device("cuda" if use_cuda else "cpu")
 
     # -- dataset
-    dataset_module = getattr(import_module("dataset"), args.dataset)  # default: MaskBaseDataset
-    # dataset_module = getattr(import_module("dataset_multilabel"), args.dataset)  # default: MaskBaseDataset
+    dataset_module = getattr(import_module("dataset_final"), args.dataset)  # default: MaskBaseDataset
     dataset = dataset_module(
         data_dir=data_dir,
     )
     num_classes = dataset.num_classes  # 18
 
     # -- augmentation
-    transform_module = getattr(import_module("dataset"), args.augmentation)  # default: BaseAugmentation
-    # transform_module = getattr(import_module("dataset_multilabel"), args.augmentation)  # default: BaseAugmentation
+    transform_module = getattr(import_module("dataset_final"), args.augmentation)  # default: BaseAugmentation
     transform = transform_module(
         resize=args.resize,
         mean=dataset.mean,
