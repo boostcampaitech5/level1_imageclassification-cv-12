@@ -4,7 +4,7 @@
 
 ##### - 카메라로 촬영한 사람 얼굴 이미지의 마스크 착용 여부를 판단하는 Task
 
-<img width="80%" src="https://github.com/boostcampaitech5/level1_imageclassification-cv-12/assets/70469008/bdf07fa9-41ab-49e0-ad3f-0a82da3c1cc9"/>
+<img width="50%" src="https://github.com/boostcampaitech5/level1_imageclassification-cv-12/assets/70469008/bdf07fa9-41ab-49e0-ad3f-0a82da3c1cc9"/>
 
 COVID-19의 확산으로 우리나라는 물론 전 세계 사람들은 경제적, 생산적인 활동에 많은 제약을 가지게 되었습니다. 우리나라는 COVID-19 확산 방지를 위해 사회적 거리 두기를 단계적으로 시행하는 등의 많은 노력을 하고 있습니다.
 
