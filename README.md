@@ -7,7 +7,9 @@
 <img width="80%" src="https://github.com/boostcampaitech5/level1_imageclassification-cv-12/assets/70469008/bdf07fa9-41ab-49e0-ad3f-0a82da3c1cc9"/>
 
 COVID-19의 확산으로 우리나라는 물론 전 세계 사람들은 경제적, 생산적인 활동에 많은 제약을 가지게 되었습니다. 우리나라는 COVID-19 확산 방지를 위해 사회적 거리 두기를 단계적으로 시행하는 등의 많은 노력을 하고 있습니다.
+
 COVID-19 감염 확산 방지를 위해 무엇보다 중요한 것은 모든 사람이 마스크를 반드시 착용하여 혹시 모를 감염자로부터의 전파 경로를 원천 차단하는 것입니다. 이를 위해 무엇보다도 코와 입을 완전히 가릴 수 있도록 마스크를 올바르게 착용하는 것이 중요하지만 넓은 공공장소에서 모든 사람들의 올바른 마스크 착용 상태를 검사하기 위해서는 추가적인 인적자원이 필요할 것입니다.
+
 따라서, 우리는 카메라로 비춰진 사람 얼굴 이미지 만으로 이 사람이 마스크를 쓰고 있는지, 쓰지 않았는지, 정확히 쓴 것이 맞는지 자동으로 가려낼 수 있는 시스템이 필요합니다. 이 시스템이 공공장소 입구에 갖춰져 있다면 적은 인적자원으로도 충분히 검사가 가능할 것입니다. 🌎
 
 #### Team Members
@@ -64,3 +66,17 @@ https://drive.google.com/file/d/1R3XxrkhqjrIZ_2g5fbKal0MGWWbPAY-e/view?usp=shari
 - Output
   - 총 18개 클래스에 대해 각 이미지 당 0 ~ 17에 해당되는 예측값을 포함한 csv 파일
   - Ex 7 (the class of cfe1268.jpg), 2 (the class of 3a2662c.jpg), ...
+
+#### Explanation for codes
+
+- Dependencies
+  - torch==1.7.1
+  - torchvision==0.8.2
+- Training
+  - `SM_CHANNEL_TRAIN={YOUR_TRAIN_IMG_DIR} SM_MODEL_DIR={YOUR_MODEL_SAVING_DIR} python train.py`
+- Inference
+  - `SM_CHANNEL_EVAL={YOUR_EVAL_DIR} SM_CHANNEL_MODEL={YOUR_TRAINED_MODEL_DIR} SM_OUTPUT_DATA_DIR={YOUR_INFERENCE_OUTPUT_DIR} python inference.py`
+- Evaluation
+  - `SM_GROUND_TRUTH_DIR={YOUR_GT_DIR} SM_OUTPUT_DATA_DIR={YOUR_INFERENCE_OUTPUT_DIR} python evaluation.py`
+- 최종 파일
+  - train_final / dataset_final / model_final / loss_final / inference_final
